@@ -1,0 +1,50 @@
+@startuml Voice Reminder Service ERD
+
+!define TABLE(name) entity name << (T,#FFAAAA) >>
+
+skinparam backgroundColor #fefefe
+skinparam roundcorner 10
+
+TABLE(users) {
+  *id : UUID <<PK>>
+  --
+  *email : VARCHAR(255) <<UNIQUE>>
+  *created_at : TIMESTAMP
+  *updated_at : TIMESTAMP
+}
+
+TABLE(reminders) {
+  *id : UUID <<PK>>
+  --
+  *user_id : UUID <<FK>>
+  *phone_number : VARCHAR(20)
+  *message : TEXT
+  *scheduled_at : TIMESTAMP
+  *status : ENUM
+  external_call_id : VARCHAR(255)
+  *created_at : TIMESTAMP
+  *updated_at : TIMESTAMP
+}
+
+TABLE(call_logs) {
+  *id : UUID <<PK>>
+  --
+  *reminder_id : UUID <<FK>>
+  *external_call_id : VARCHAR(255)
+  *status : VARCHAR(50)
+  transcript : TEXT
+  *received_at : TIMESTAMP
+}
+
+users ||--o{ reminders : "has many"
+reminders ||--o{ call_logs : "has many"
+
+note right of reminders::status
+  Possible values:
+  - scheduled
+  - processing
+  - called
+  - failed
+end note
+
+@enduml

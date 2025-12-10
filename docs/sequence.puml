@@ -1,0 +1,62 @@
+@startuml Reminder Lifecycle Sequence
+
+!theme cerulean
+skinparam backgroundColor #fefefe
+
+actor User
+participant "Frontend" as FE
+participant "Backend API" as API
+participant "Database" as DB
+participant "Worker Service" as Worker
+participant "Voice Provider" as VAPI
+
+== Create Reminder ==
+
+User -> FE : Fill reminder form
+FE -> API : POST /api/reminders
+API -> DB : Validate user exists
+API -> DB : Create reminder (status=scheduled)
+DB --> API : Reminder created
+API --> FE : 201 Created
+FE --> User : Success notification
+
+== Worker Processing ==
+
+loop Every 30 seconds
+    Worker -> DB : Query due reminders\n(scheduled_at <= now, status=scheduled)
+    alt Reminders found
+        DB --> Worker : List of due reminders
+        Worker -> DB : Update status = processing
+        Worker -> VAPI : POST /call\n{phone_number, message, metadata}
+        VAPI --> Worker : {call_id, status: created}
+        Worker -> DB : Store external_call_id
+        Worker -> DB : Create call_log (status=created)
+    else No reminders
+        DB --> Worker : Empty list
+    end
+end
+
+== Webhook Callback ==
+
+VAPI -> Worker : POST /webhooks/call-status
+note right: {call_id, status, transcript, metadata}
+Worker -> DB : Check idempotency\n(call_id + status exists?)
+alt New webhook
+    Worker -> DB : Find reminder by reminder_id
+    Worker -> DB : Update reminder status\n(called or failed)
+    Worker -> DB : Create call_log with transcript
+    Worker --> VAPI : 200 OK
+else Duplicate webhook
+    Worker --> VAPI : 200 OK (idempotent)
+end
+
+== View Status ==
+
+User -> FE : View reminder details
+FE -> API : GET /api/reminders/{id}
+API -> DB : Fetch reminder with call_logs
+DB --> API : Reminder data
+API --> FE : Reminder details
+FE --> User : Display status & transcript
+
+@enduml

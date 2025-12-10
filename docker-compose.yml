@@ -1,0 +1,97 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: voice_reminder_db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-halamadrid}
+      POSTGRES_DB: ${POSTGRES_DB:-voice_reminder}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U postgres" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - voice_reminder_network
+
+  # Backend API Service
+  api:
+    build:
+      context: ./backend-api
+      dockerfile: Dockerfile
+    container_name: voice_reminder_api
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-halamadrid}@postgres:5432/${POSTGRES_DB:-voice_reminder}
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - CORS_ORIGINS=["http://localhost:3000","http://localhost:80","http://frontend:80"]
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - voice_reminder_network
+
+  # Worker Service
+  worker:
+    build:
+      context: ./worker-service
+      dockerfile: Dockerfile
+    container_name: voice_reminder_worker
+    environment:
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-halamadrid}@postgres:5432/${POSTGRES_DB:-voice_reminder}
+      - DEBUG=${DEBUG:-false}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SCHEDULER_INTERVAL_SECONDS=${SCHEDULER_INTERVAL_SECONDS:-30}
+      - VOICE_PROVIDER_API_URL=${VOICE_PROVIDER_API_URL:-}
+      - VOICE_PROVIDER_API_KEY=${VOICE_PROVIDER_API_KEY:-}
+      - CORS_ORIGINS=["http://localhost:3000","http://localhost:80","http://frontend:80"]
+    ports:
+      - "8001:8001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/health')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - voice_reminder_network
+
+  # Frontend
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: voice_reminder_frontend
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+      - worker
+    networks:
+      - voice_reminder_network
+
+volumes:
+  postgres_data:
+
+
+networks:
+  voice_reminder_network:
+    driver: bridge

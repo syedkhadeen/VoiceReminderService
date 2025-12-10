@@ -1,0 +1,69 @@
+@startuml System Architecture
+
+!define ICONURL https://raw.githubusercontent.com/tupadr3/plantuml-icon-font-sprites/v2.4.0
+
+skinparam backgroundColor #fefefe
+skinparam componentStyle rectangle
+skinparam defaultFontSize 12
+
+title Voice Reminder Service - System Architecture
+
+package "Frontend" {
+    [React SPA] as frontend
+    note right of frontend
+        - Vite + React 18
+        - Tailwind CSS
+        - Dark/Light Mode
+        - Responsive Design
+    end note
+}
+
+package "Backend Services" {
+    package "API Service (Port 8000)" {
+        [FastAPI] as api
+        [Service Layer] as service
+        [Repository Layer] as repo
+    }
+    
+    package "Worker Service (Port 8001)" {
+        [APScheduler] as scheduler
+        [Webhook Handler] as webhook
+        [Voice Provider Client] as vapi_client
+    }
+}
+
+database "PostgreSQL" {
+    [users] as users_table
+    [reminders] as reminders_table
+    [call_logs] as call_logs_table
+}
+
+cloud "External Services" {
+    [VAPI.ai] as vapi
+}
+
+' Frontend connections
+frontend --> api : REST API
+
+' API internal connections
+api --> service
+service --> repo
+repo --> users_table
+repo --> reminders_table
+
+' Worker connections
+scheduler --> reminders_table : Poll due reminders
+scheduler --> vapi_client
+vapi_client --> vapi : Create calls
+vapi --> webhook : Webhook callbacks
+webhook --> reminders_table : Update status
+webhook --> call_logs_table : Store logs
+
+' Styling
+skinparam component {
+    BackgroundColor<<frontend>> LightBlue
+    BackgroundColor<<api>> LightGreen
+    BackgroundColor<<worker>> LightYellow
+}
+
+@enduml
