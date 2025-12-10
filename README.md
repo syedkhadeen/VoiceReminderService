@@ -1,7 +1,5 @@
 # 📞 Voice Reminder Service
 
-> **Submission for Deadline: 24/12/2025**
-
 A full-stack SaaS platform for scheduling and executing voice/SMS reminders. This project demonstrates a microservices architecture with **FastAPI**, **React**, and **PostgreSQL**.
 
 ![Python](https://img.shields.io/badge/Python-3.11+-blue?style=for-the-badge&logo=python&logoColor=white)
